@@ -1,0 +1,77 @@
+{
+  "macOS.minVersion": "10.13.0",
+  "noteplan.minAppVersion": "3.9.0",
+  "plugin.id": "asktru.NoteGraph",
+  "plugin.name": "Note Graph",
+  "plugin.description": "Interactive graph visualization of note connections via wiki links and backlinks.",
+  "plugin.icon": "🕸️",
+  "plugin.author": "asktru",
+  "plugin.version": "1.0.0",
+  "plugin.script": "script.js",
+  "plugin.isRemote": "false",
+  "plugin.dependsOn": [
+    { "id": "np.Shared", "minVersion": "1.0.0" }
+  ],
+  "plugin.requiredFiles": [
+    "graphEvents.js"
+  ],
+  "plugin.requiredSharedFiles": [
+    "fontawesome.css",
+    "regular.min.flat4NP.css",
+    "solid.min.flat4NP.css",
+    "fa-regular-400.woff2",
+    "fa-solid-900.woff2",
+    "pluginToHTMLCommsBridge.js"
+  ],
+  "plugin.settings": [
+    {
+      "type": "heading",
+      "title": "Note Graph Settings"
+    },
+    {
+      "key": "foldersToExclude",
+      "title": "Folders to Exclude",
+      "description": "Comma-separated folder names to exclude from scanning.",
+      "type": "string",
+      "default": "@Archive, @Trash, @Templates",
+      "required": false
+    },
+    {
+      "key": "lastSelectedNote",
+      "type": "hidden",
+      "default": ""
+    }
+  ],
+  "plugin.commands": [
+    {
+      "name": "Note Graph",
+      "alias": ["graph", "note graph", "connections"],
+      "description": "Open the Note Graph visualization",
+      "jsFunction": "showNoteGraph",
+      "sidebarView": {
+        "windowID": "asktru.NoteGraph.dashboard",
+        "title": "Note Graph",
+        "icon": "fa-diagram-project",
+        "iconColor": "#8B5CF6"
+      }
+    },
+    {
+      "name": "onMessageFromHTMLView",
+      "description": "Callback for HTML window messages",
+      "jsFunction": "onMessageFromHTMLView",
+      "hidden": true
+    },
+    {
+      "name": "Refresh Note Graph",
+      "description": "Refresh the graph",
+      "jsFunction": "refreshNoteGraph",
+      "hidden": true
+    },
+    {
+      "name": "Add or remove note from graph",
+      "alias": ["graph add", "graph remove", "toggle graph"],
+      "description": "Toggle graph: true frontmatter on the current note to include it in the Note Graph sidebar.",
+      "jsFunction": "toggleGraphCommand"
+    }
+  ]
+}
