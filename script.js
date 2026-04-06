@@ -258,7 +258,7 @@ function getBacklinks(note) {
 // GRAPH DATA BUILDER
 // ============================================
 
-function buildGraphData(graphNotes, selectedFilename, depth) {
+function buildGraphData(graphNotes, selectedFilename, depth, showTags, showMentions) {
   var nodesMap = {};
   var edges = [];
   var edgeSet = {};
@@ -278,15 +278,24 @@ function buildGraphData(graphNotes, selectedFilename, depth) {
     edges.push({ source: sourceFile, target: targetFile });
   }
 
+  // Build a lookup for graph notes
+  var graphNoteSet = {};
   for (var g = 0; g < graphNotes.length; g++) {
-    addNode(graphNotes[g].filename, graphNotes[g].title, true, graphNotes[g].filename === selectedFilename);
+    graphNoteSet[graphNotes[g].filename] = graphNotes[g];
   }
 
   var notesToProcess = [];
   if (selectedFilename) {
+    // Start with only the selected note — other nodes discovered via links
+    var selGN = graphNoteSet[selectedFilename];
+    addNode(selectedFilename, selGN ? selGN.title : (findNoteByFilename(selectedFilename) || {}).title || selectedFilename, !!selGN, true);
     notesToProcess.push(selectedFilename);
   } else {
-    for (var gn = 0; gn < graphNotes.length; gn++) notesToProcess.push(graphNotes[gn].filename);
+    // No selection — show all graph notes
+    for (var gn = 0; gn < graphNotes.length; gn++) {
+      addNode(graphNotes[gn].filename, graphNotes[gn].title, true, false);
+      notesToProcess.push(graphNotes[gn].filename);
+    }
   }
 
   var processed = {};
@@ -302,7 +311,7 @@ function buildGraphData(graphNotes, selectedFilename, depth) {
     for (var o = 0; o < outgoing.length; o++) {
       var targetNote = findNoteByTitle(outgoing[o]);
       if (targetNote) {
-        addNode(targetNote.filename, targetNote.title || outgoing[o], false, false);
+        addNode(targetNote.filename, targetNote.title || outgoing[o], !!graphNoteSet[targetNote.filename], false);
         addEdge(filename, targetNote.filename);
         if (currentDepth < depth) processNoteLinks(targetNote.filename, currentDepth + 1);
       }
@@ -310,24 +319,48 @@ function buildGraphData(graphNotes, selectedFilename, depth) {
 
     var incoming = getBacklinks(note);
     for (var b = 0; b < incoming.length; b++) {
-      addNode(incoming[b].filename, incoming[b].title, false, false);
+      addNode(incoming[b].filename, incoming[b].title, !!graphNoteSet[incoming[b].filename], false);
       addEdge(incoming[b].filename, filename);
       if (currentDepth < depth) processNoteLinks(incoming[b].filename, currentDepth + 1);
+    }
+
+    // Hashtags
+    if (showTags) {
+      try {
+        var tags = note.hashtags || [];
+        for (var ti = 0; ti < tags.length; ti++) {
+          var tag = tags[ti];
+          if (!tag) continue;
+          var tagId = 'tag:#' + tag;
+          if (!nodesMap[tagId]) {
+            nodesMap[tagId] = { id: tagId, title: '#' + tag, isGraphNote: false, isSelected: false, nodeType: 'tag' };
+          }
+          addEdge(filename, tagId);
+        }
+      } catch (te) {}
+    }
+
+    // Mentions
+    if (showMentions) {
+      try {
+        var mentions = note.mentions || [];
+        for (var mi = 0; mi < mentions.length; mi++) {
+          var mention = mentions[mi];
+          if (!mention) continue;
+          // Skip system mentions
+          if (mention.startsWith('done(') || mention.startsWith('review(') || mention.startsWith('reviewed(') ||
+              mention.startsWith('repeat(') || mention.startsWith('due(') || mention.startsWith('start(')) continue;
+          var mentionId = 'mention:@' + mention;
+          if (!nodesMap[mentionId]) {
+            nodesMap[mentionId] = { id: mentionId, title: '@' + mention, isGraphNote: false, isSelected: false, nodeType: 'mention' };
+          }
+          addEdge(filename, mentionId);
+        }
+      } catch (me) {}
     }
   }
 
   for (var p = 0; p < notesToProcess.length; p++) processNoteLinks(notesToProcess[p], 1);
-
-  // Also connect graph notes that link to each other
-  for (var g1 = 0; g1 < graphNotes.length; g1++) {
-    var gNote = findNoteByFilename(graphNotes[g1].filename);
-    if (!gNote) continue;
-    var gOut = getOutgoingLinks(gNote);
-    for (var go = 0; go < gOut.length; go++) {
-      var gTarget = findNoteByTitle(gOut[go]);
-      if (gTarget && nodesMap[gTarget.filename]) addEdge(graphNotes[g1].filename, gTarget.filename);
-    }
-  }
 
   var nodes = [];
   for (var nk in nodesMap) nodes.push(nodesMap[nk]);
@@ -363,6 +396,11 @@ function buildGraphArea() {
   html += '<div class="ng-depth-btns">';
   html += '<button class="ng-depth-btn active" data-depth="1">1-level</button>';
   html += '<button class="ng-depth-btn" data-depth="2">2-level</button>';
+  html += '<button class="ng-depth-btn" data-depth="3">3-level</button>';
+  html += '</div>';
+  html += '<div class="ng-toggle-btns">';
+  html += '<button class="ng-toggle-btn" data-toggle="tags"><i class="fa-solid fa-hashtag"></i></button>';
+  html += '<button class="ng-toggle-btn" data-toggle="mentions"><i class="fa-solid fa-at"></i></button>';
   html += '</div>';
   html += '<div class="ng-zoom-btns">';
   html += '<button class="ng-zoom-btn" data-zoom="in"><i class="fa-solid fa-plus"></i></button>';
@@ -420,6 +458,10 @@ function getInlineCSS() {
 '.ng-depth-btn { padding: 4px 12px; font-size: 11px; font-weight: 500; border-radius: 100px; border: none; background: transparent; color: var(--ng-text-muted); cursor: pointer; }\n' +
 '.ng-depth-btn:hover { background: var(--ng-border); color: var(--ng-text); }\n' +
 '.ng-depth-btn.active { background: var(--ng-accent-soft); color: var(--ng-accent); font-weight: 600; }\n' +
+'.ng-toggle-btns { display: flex; gap: 4px; }\n' +
+'.ng-toggle-btn { width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent; color: var(--ng-text-faint); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }\n' +
+'.ng-toggle-btn:hover { background: var(--ng-border); color: var(--ng-text); }\n' +
+'.ng-toggle-btn.active { background: var(--ng-accent-soft); color: var(--ng-accent); }\n' +
 '.ng-zoom-btn { width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent; color: var(--ng-text-muted); cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; }\n' +
 '.ng-zoom-btn:hover { background: var(--ng-border); color: var(--ng-text); }\n' +
 '.ng-canvas-wrap { flex: 1; position: relative; overflow: hidden; }\n' +
@@ -464,9 +506,24 @@ async function showNoteGraph(selectedFilename) {
     if (!filename && graphNotes.length > 0) filename = graphNotes[0].filename;
     if (filename) saveLastSelected(filename);
 
-    var data1 = buildGraphData(graphNotes, filename, 1);
-    var data2 = buildGraphData(graphNotes, filename, 2);
-    var graphDataJSON = JSON.stringify({ depth1: data1, depth2: data2, selectedFilename: filename });
+    // Pre-build all depth × tags × mentions combinations
+    var allData = {};
+    var depths = [1, 2, 3];
+    var toggleCombos = [
+      { tags: false, mentions: false, key: 'nn' },
+      { tags: true, mentions: false, key: 'tn' },
+      { tags: false, mentions: true, key: 'nm' },
+      { tags: true, mentions: true, key: 'tm' },
+    ];
+    for (var di = 0; di < depths.length; di++) {
+      for (var ci = 0; ci < toggleCombos.length; ci++) {
+        var combo = toggleCombos[ci];
+        var dataKey = 'd' + depths[di] + '_' + combo.key;
+        allData[dataKey] = buildGraphData(graphNotes, filename, depths[di], combo.tags, combo.mentions);
+      }
+    }
+    allData.selectedFilename = filename;
+    var graphDataJSON = JSON.stringify(allData);
 
     var bodyHTML = '<div class="ng-layout">';
     bodyHTML += buildLeftSidebar(graphNotes, filename);

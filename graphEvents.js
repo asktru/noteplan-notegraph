@@ -5,6 +5,8 @@
 
 var NS = 'http://www.w3.org/2000/svg';
 var currentDepth = 1;
+var showTags = false;
+var showMentions = false;
 var currentZoom = 1;
 var nodes = [];
 var edges = [];
@@ -76,6 +78,7 @@ function initGraph(data) {
       title: n.title || '',
       isGraphNote: n.isGraphNote,
       isSelected: n.isSelected,
+      nodeType: n.nodeType || 'note',
       x: cx + Math.cos(angle) * radius + (Math.random() - 0.5) * 40,
       y: cy + Math.sin(angle) * radius + (Math.random() - 0.5) * 40,
       vx: 0,
@@ -124,7 +127,11 @@ function tick() {
     var edy = t.y - s.y;
     var edist = Math.sqrt(edx * edx + edy * edy);
     if (edist < 1) edist = 1;
-    var eforce = K_ATTRACT * (edist - REST_LENGTH);
+    // Tag/mention nodes have shorter rest length (stay closer to parent)
+    var isMeta = (s.nodeType === 'tag' || s.nodeType === 'mention' || t.nodeType === 'tag' || t.nodeType === 'mention');
+    var restLen = isMeta ? 80 : REST_LENGTH;
+    var attractK = isMeta ? K_ATTRACT * 2 : K_ATTRACT;
+    var eforce = attractK * (edist - restLen);
     var efx = (edx / edist) * eforce;
     var efy = (edy / edist) * eforce;
     if (!s.fixed) { s.vx += efx; s.vy += efy; }
@@ -175,6 +182,12 @@ function reheat() {
 // SVG RENDERING
 // ============================================
 
+function getComputedColor(varName, fallback) {
+  var style = getComputedStyle(document.documentElement);
+  var val = style.getPropertyValue(varName).trim();
+  return val || fallback;
+}
+
 function createSVGElements() {
   svgEl = document.getElementById('ngSVG');
   if (!svgEl) return;
@@ -182,16 +195,24 @@ function createSVGElements() {
 
   svgEl.setAttribute('viewBox', '0 0 ' + canvasW + ' ' + canvasH);
 
-  // Edges group (behind nodes)
+  // Resolve CSS colors for SVG (SVG doesn't reliably inherit CSS custom properties)
+  var nodeFill = getComputedColor('--ng-bg-card', '#16213e');
+  var nodeStroke = getComputedColor('--ng-border-strong', '#333');
+  var accentColor = getComputedColor('--ng-accent', '#8B5CF6');
+  var textColor = getComputedColor('--ng-text', '#e0e0e0');
+  var textMuted = getComputedColor('--ng-text-muted', '#888');
+  var edgeColor = getComputedColor('--ng-text-faint', '#555');
+  var tagColor = '#F97316'; // orange for tags
+  var mentionColor = '#3B82F6'; // blue for mentions
+
+  // Edges group
   var edgeGroup = document.createElementNS(NS, 'g');
   edgeGroup.id = 'ngEdges';
   for (var e = 0; e < edges.length; e++) {
     var line = document.createElementNS(NS, 'line');
-    line.setAttribute('class', 'ng-edge');
-    line.setAttribute('stroke', 'var(--ng-edge-color)');
+    line.setAttribute('stroke', edgeColor);
     line.setAttribute('stroke-width', '1.5');
     line.setAttribute('stroke-opacity', '0.4');
-    line.dataset.idx = e;
     edgeGroup.appendChild(line);
   }
   svgEl.appendChild(edgeGroup);
@@ -200,37 +221,67 @@ function createSVGElements() {
   var nodeGroup = document.createElementNS(NS, 'g');
   nodeGroup.id = 'ngNodes';
   for (var n = 0; n < nodes.length; n++) {
+    var nd = nodes[n];
     var g = document.createElementNS(NS, 'g');
-    g.dataset.nodeId = nodes[n].id;
-    g.dataset.title = nodes[n].title;
+    g.dataset.nodeId = nd.id;
+    g.dataset.title = nd.title;
     g.style.cursor = 'grab';
 
+    var isTag = nd.nodeType === 'tag';
+    var isMention = nd.nodeType === 'mention';
+    var isMetaNode = isTag || isMention;
+
     var rect = document.createElementNS(NS, 'rect');
-    var titleLen = Math.min(nodes[n].title.length, 25);
-    var rectW = Math.max(titleLen * 7 + 20, 60);
-    var rectH = 28;
+    var titleLen = Math.min(nd.title.length, 25);
+    var rectW = isMetaNode ? Math.max(titleLen * 6.5 + 14, 50) : Math.max(titleLen * 7 + 20, 60);
+    var rectH = isMetaNode ? 22 : 28;
     rect.setAttribute('x', -rectW / 2);
     rect.setAttribute('y', -rectH / 2);
     rect.setAttribute('width', rectW);
     rect.setAttribute('height', rectH);
-    rect.setAttribute('rx', '8');
-    var cls = 'ng-node-rect';
-    if (nodes[n].isGraphNote) cls += ' graph-note';
-    if (nodes[n].isSelected) cls += ' selected';
-    rect.setAttribute('class', cls);
+    rect.setAttribute('rx', isMetaNode ? '11' : '8');
+
+    if (isTag) {
+      rect.setAttribute('fill', 'transparent');
+      rect.setAttribute('stroke', tagColor);
+      rect.setAttribute('stroke-width', '1.5');
+      rect.setAttribute('stroke-dasharray', '4 2');
+    } else if (isMention) {
+      rect.setAttribute('fill', 'transparent');
+      rect.setAttribute('stroke', mentionColor);
+      rect.setAttribute('stroke-width', '1.5');
+      rect.setAttribute('stroke-dasharray', '4 2');
+    } else if (nd.isSelected) {
+      rect.setAttribute('fill', nodeFill);
+      rect.setAttribute('stroke', accentColor);
+      rect.setAttribute('stroke-width', '2.5');
+    } else if (nd.isGraphNote) {
+      rect.setAttribute('fill', nodeFill);
+      rect.setAttribute('stroke', accentColor);
+      rect.setAttribute('stroke-width', '1.5');
+      rect.setAttribute('stroke-opacity', '0.6');
+    } else {
+      rect.setAttribute('fill', nodeFill);
+      rect.setAttribute('stroke', nodeStroke);
+      rect.setAttribute('stroke-width', '1');
+    }
     g.appendChild(rect);
 
     var text = document.createElementNS(NS, 'text');
-    var displayTitle = nodes[n].title.length > 25 ? nodes[n].title.substring(0, 23) + '...' : nodes[n].title;
+    var displayTitle = nd.title.length > 25 ? nd.title.substring(0, 23) + '...' : nd.title;
     text.textContent = displayTitle;
-    var textCls = 'ng-node-text';
-    if (nodes[n].isSelected) textCls += ' selected';
-    text.setAttribute('class', textCls);
+    var textFill = isTag ? tagColor : isMention ? mentionColor : nd.isSelected ? accentColor : textColor;
+    text.setAttribute('fill', textFill);
+    text.setAttribute('font-size', isMetaNode ? '10' : '11');
+    text.setAttribute('font-weight', nd.isSelected ? '700' : isMetaNode ? '600' : '500');
+    text.setAttribute('font-family', '-apple-system, system-ui, sans-serif');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.style.pointerEvents = 'none';
     g.appendChild(text);
 
-    // Tooltip
     var titleEl = document.createElementNS(NS, 'title');
-    titleEl.textContent = nodes[n].title;
+    titleEl.textContent = nd.title;
     g.appendChild(titleEl);
 
     nodeGroup.appendChild(g);
@@ -326,10 +377,15 @@ function fitZoom() {
 // DEPTH SWITCHING
 // ============================================
 
-function switchDepth(depth) {
-  currentDepth = depth;
-  var data = depth === 2 ? GRAPH_DATA.depth2 : GRAPH_DATA.depth1;
-  initGraph(data);
+function getDataKey() {
+  var toggleKey = (showTags ? 't' : 'n') + (showMentions ? 'm' : 'n');
+  return 'd' + currentDepth + '_' + toggleKey;
+}
+
+function reloadGraph() {
+  var key = getDataKey();
+  var data = GRAPH_DATA[key];
+  if (data) initGraph(data);
 }
 
 // ============================================
@@ -337,8 +393,9 @@ function switchDepth(depth) {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize graph with depth 1
-  var initialData = GRAPH_DATA.depth1 || { nodes: [], edges: [] };
+  // Initialize graph with depth 1, no tags/mentions
+  var initialKey = getDataKey();
+  var initialData = GRAPH_DATA[initialKey] || { nodes: [], edges: [] };
   initGraph(initialData);
 
   // Event delegation
@@ -348,7 +405,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (depthBtn) {
       document.querySelectorAll('.ng-depth-btn').forEach(function(b) { b.classList.remove('active'); });
       depthBtn.classList.add('active');
-      switchDepth(parseInt(depthBtn.dataset.depth) || 1);
+      currentDepth = parseInt(depthBtn.dataset.depth) || 1;
+      reloadGraph();
+      return;
+    }
+
+    // Toggle buttons (tags/mentions)
+    var toggleBtn = e.target.closest('.ng-toggle-btn');
+    if (toggleBtn) {
+      var toggle = toggleBtn.dataset.toggle;
+      if (toggle === 'tags') showTags = !showTags;
+      if (toggle === 'mentions') showMentions = !showMentions;
+      toggleBtn.classList.toggle('active');
+      reloadGraph();
       return;
     }
 
