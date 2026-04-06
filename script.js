@@ -7,7 +7,13 @@ var WINDOW_ID = 'asktru.NoteGraph.dashboard';
 function getSettings() {
   var s = DataStore.settings || {};
   var excl = (s.foldersToExclude || '@Archive, @Trash, @Templates').split(',').map(function(f) { return f.trim(); }).filter(Boolean);
-  return { foldersToExclude: excl, lastSelectedNote: s.lastSelectedNote || '' };
+  return {
+    foldersToExclude: excl,
+    lastSelectedNote: s.lastSelectedNote || '',
+    lastDepth: s.lastDepth || '1',
+    showTags: s.showTags || 'false',
+    showMentions: s.showMentions || 'false',
+  };
 }
 
 function saveLastSelected(filename) {
@@ -331,9 +337,12 @@ function buildGraphData(graphNotes, selectedFilename, depth, showTags, showMenti
         for (var ti = 0; ti < tags.length; ti++) {
           var tag = tags[ti];
           if (!tag) continue;
-          var tagId = 'tag:#' + tag;
+          // Strip leading # if already present
+          var cleanTag = tag.startsWith('#') ? tag.substring(1) : tag;
+          if (!cleanTag) continue;
+          var tagId = 'tag:#' + cleanTag;
           if (!nodesMap[tagId]) {
-            nodesMap[tagId] = { id: tagId, title: '#' + tag, isGraphNote: false, isSelected: false, nodeType: 'tag' };
+            nodesMap[tagId] = { id: tagId, title: '#' + cleanTag, isGraphNote: false, isSelected: false, nodeType: 'tag' };
           }
           addEdge(filename, tagId);
         }
@@ -347,12 +356,15 @@ function buildGraphData(graphNotes, selectedFilename, depth, showTags, showMenti
         for (var mi = 0; mi < mentions.length; mi++) {
           var mention = mentions[mi];
           if (!mention) continue;
+          // Strip leading @ if present
+          var cleanMention = mention.startsWith('@') ? mention.substring(1) : mention;
           // Skip system mentions
-          if (mention.startsWith('done(') || mention.startsWith('review(') || mention.startsWith('reviewed(') ||
-              mention.startsWith('repeat(') || mention.startsWith('due(') || mention.startsWith('start(')) continue;
-          var mentionId = 'mention:@' + mention;
+          if (cleanMention.startsWith('done(') || cleanMention.startsWith('review(') || cleanMention.startsWith('reviewed(') ||
+              cleanMention.startsWith('repeat(') || cleanMention.startsWith('due(') || cleanMention.startsWith('start(') ||
+              cleanMention.startsWith('completed(') || cleanMention.startsWith('cancelled(')) continue;
+          var mentionId = 'mention:@' + cleanMention;
           if (!nodesMap[mentionId]) {
-            nodesMap[mentionId] = { id: mentionId, title: '@' + mention, isGraphNote: false, isSelected: false, nodeType: 'mention' };
+            nodesMap[mentionId] = { id: mentionId, title: '@' + cleanMention, isGraphNote: false, isSelected: false, nodeType: 'mention' };
           }
           addEdge(filename, mentionId);
         }
@@ -390,17 +402,18 @@ function buildLeftSidebar(graphNotes, selectedFilename) {
   return html;
 }
 
-function buildGraphArea() {
+function buildGraphArea(savedDepth, savedShowTags, savedShowMentions) {
   var html = '<div class="ng-graph-area">';
   html += '<div class="ng-toolbar">';
   html += '<div class="ng-depth-btns">';
-  html += '<button class="ng-depth-btn active" data-depth="1">1-level</button>';
-  html += '<button class="ng-depth-btn" data-depth="2">2-level</button>';
-  html += '<button class="ng-depth-btn" data-depth="3">3-level</button>';
+  var sd = savedDepth || 1;
+  html += '<button class="ng-depth-btn' + (sd === 1 ? ' active' : '') + '" data-depth="1">1-level</button>';
+  html += '<button class="ng-depth-btn' + (sd === 2 ? ' active' : '') + '" data-depth="2">2-level</button>';
+  html += '<button class="ng-depth-btn' + (sd === 3 ? ' active' : '') + '" data-depth="3">3-level</button>';
   html += '</div>';
   html += '<div class="ng-toggle-btns">';
-  html += '<button class="ng-toggle-btn" data-toggle="tags"><i class="fa-solid fa-hashtag"></i></button>';
-  html += '<button class="ng-toggle-btn" data-toggle="mentions"><i class="fa-solid fa-at"></i></button>';
+  html += '<button class="ng-toggle-btn' + (savedShowTags ? ' active' : '') + '" data-toggle="tags"><i class="fa-solid fa-hashtag"></i></button>';
+  html += '<button class="ng-toggle-btn' + (savedShowMentions ? ' active' : '') + '" data-toggle="mentions"><i class="fa-solid fa-at"></i></button>';
   html += '</div>';
   html += '<div class="ng-zoom-btns">';
   html += '<button class="ng-zoom-btn" data-zoom="in"><i class="fa-solid fa-plus"></i></button>';
@@ -471,7 +484,7 @@ function getInlineCSS() {
 '@media (max-width: 700px) { .ng-sidebar { display: none; } }\n';
 }
 
-function buildFullHTML(bodyContent, graphDataJSON) {
+function buildFullHTML(bodyContent, graphDataJSON, savedPrefsJSON) {
   var themeCSS = getThemeCSS();
   var pluginCSS = getInlineCSS();
   var themeAttr = isLightTheme() ? 'light' : 'dark';
@@ -485,7 +498,7 @@ function buildFullHTML(bodyContent, graphDataJSON) {
     '  <style>' + themeCSS + '\n' + pluginCSS + '</style>\n' +
     '</head>\n<body>\n' + bodyContent + '\n' +
     '  <div class="ng-toast" id="ngToast"></div>\n' +
-    '  <script>var receivingPluginID="asktru.NoteGraph";\nvar GRAPH_DATA=' + graphDataJSON + ';\n<\/script>\n' +
+    '  <script>var receivingPluginID="asktru.NoteGraph";\nvar GRAPH_DATA=' + graphDataJSON + ';\nvar SAVED_PREFS=' + savedPrefsJSON + ';\n<\/script>\n' +
     '  <script type="text/javascript" src="graphEvents.js"><\/script>\n' +
     '  <script type="text/javascript" src="../np.Shared/pluginToHTMLCommsBridge.js"><\/script>\n' +
     '</body>\n</html>';
@@ -525,12 +538,22 @@ async function showNoteGraph(selectedFilename) {
     allData.selectedFilename = filename;
     var graphDataJSON = JSON.stringify(allData);
 
+    // Saved prefs for restoring client state
+    var savedPrefsJSON = JSON.stringify({
+      depth: parseInt(config.lastDepth) || 1,
+      showTags: config.showTags === 'true',
+      showMentions: config.showMentions === 'true',
+    });
+
     var bodyHTML = '<div class="ng-layout">';
     bodyHTML += buildLeftSidebar(graphNotes, filename);
-    bodyHTML += buildGraphArea();
+    var savedDepth = parseInt(config.lastDepth) || 1;
+    var savedShowTags = config.showTags === 'true';
+    var savedShowMentions = config.showMentions === 'true';
+    bodyHTML += buildGraphArea(savedDepth, savedShowTags, savedShowMentions);
     bodyHTML += '</div>';
 
-    var fullHTML = buildFullHTML(bodyHTML, graphDataJSON);
+    var fullHTML = buildFullHTML(bodyHTML, graphDataJSON, savedPrefsJSON);
 
     await CommandBar.onMainThread();
     CommandBar.showLoading(false);
@@ -584,6 +607,21 @@ async function onMessageFromHTMLView(actionType, data) {
           await CommandBar.onMainThread();
           NotePlan.openURL('noteplan://x-callback-url/openNote?noteTitle=' + encodeURIComponent(msg.title) + '&splitView=yes&reuseSplitView=yes');
         }
+        break;
+
+      case 'openTag':
+        if (msg.name) {
+          await CommandBar.onMainThread();
+          NotePlan.openURL('noteplan://x-callback-url/selectTag?name=' + encodeURIComponent(msg.name) + '&splitView=yes&reuseSplitView=yes');
+        }
+        break;
+
+      case 'savePrefs':
+        var sp = DataStore.settings || {};
+        if (msg.depth) sp.lastDepth = String(msg.depth);
+        if (msg.showTags !== undefined) sp.showTags = String(msg.showTags);
+        if (msg.showMentions !== undefined) sp.showMentions = String(msg.showMentions);
+        DataStore.settings = sp;
         break;
 
       default:

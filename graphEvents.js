@@ -16,6 +16,7 @@ var animFrameId = null;
 var dragNode = null;
 var dragOffsetX = 0;
 var dragOffsetY = 0;
+var didDrag = false;
 var svgEl = null;
 var canvasW = 800;
 var canvasH = 600;
@@ -327,6 +328,7 @@ function onNodeMouseDown(e) {
   dragNode = nodeMap[nodeId];
   if (!dragNode) return;
   dragNode.fixed = true;
+  didDrag = false;
   var pt = getSVGPoint(e);
   dragOffsetX = dragNode.x - pt.x;
   dragOffsetY = dragNode.y - pt.y;
@@ -337,6 +339,7 @@ function onNodeMouseDown(e) {
 
 function onDragMove(e) {
   if (!dragNode) return;
+  didDrag = true;
   var pt = getSVGPoint(e);
   dragNode.x = pt.x + dragOffsetX;
   dragNode.y = pt.y + dragOffsetY;
@@ -354,6 +357,8 @@ function onDragEnd(e) {
   }
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
+  // Reset didDrag after a short delay so the click event (which fires after mouseup) can check it
+  setTimeout(function() { didDrag = false; }, 50);
 }
 
 // ============================================
@@ -393,7 +398,14 @@ function reloadGraph() {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize graph with depth 1, no tags/mentions
+  // Restore saved prefs
+  if (typeof SAVED_PREFS !== 'undefined' && SAVED_PREFS) {
+    currentDepth = SAVED_PREFS.depth || 1;
+    showTags = !!SAVED_PREFS.showTags;
+    showMentions = !!SAVED_PREFS.showMentions;
+  }
+
+  // Initialize graph with saved settings
   var initialKey = getDataKey();
   var initialData = GRAPH_DATA[initialKey] || { nodes: [], edges: [] };
   initGraph(initialData);
@@ -407,6 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
       depthBtn.classList.add('active');
       currentDepth = parseInt(depthBtn.dataset.depth) || 1;
       reloadGraph();
+      sendMessageToPlugin('savePrefs', JSON.stringify({ depth: currentDepth, showTags: showTags, showMentions: showMentions }));
       return;
     }
 
@@ -418,6 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (toggle === 'mentions') showMentions = !showMentions;
       toggleBtn.classList.toggle('active');
       reloadGraph();
+      sendMessageToPlugin('savePrefs', JSON.stringify({ depth: currentDepth, showTags: showTags, showMentions: showMentions }));
       return;
     }
 
@@ -438,10 +452,17 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // Node click (open in split view)
+    // Node click (only if not a drag)
     var nodeG = e.target.closest('g[data-node-id]');
-    if (nodeG && !dragNode) {
-      sendMessageToPlugin('openNote', JSON.stringify({ title: nodeG.dataset.title }));
+    if (nodeG && !dragNode && !didDrag) {
+      var nodeId = nodeG.dataset.nodeId || '';
+      var nodeTitle = nodeG.dataset.title || '';
+      if (nodeId.startsWith('tag:') || nodeId.startsWith('mention:')) {
+        // Tags/mentions: open NotePlan's tag filter
+        sendMessageToPlugin('openTag', JSON.stringify({ name: nodeTitle }));
+      } else {
+        sendMessageToPlugin('openNote', JSON.stringify({ title: nodeTitle }));
+      }
       return;
     }
   });

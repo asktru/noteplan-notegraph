@@ -40,6 +40,21 @@
       "key": "lastSelectedNote",
       "type": "hidden",
       "default": ""
+    },
+    {
+      "key": "lastDepth",
+      "type": "hidden",
+      "default": "1"
+    },
+    {
+      "key": "showTags",
+      "type": "hidden",
+      "default": "false"
+    },
+    {
+      "key": "showMentions",
+      "type": "hidden",
+      "default": "false"
     }
   ],
   "plugin.commands": [

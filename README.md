@@ -2,6 +2,8 @@
 
 An interactive force-directed graph visualization of note connections for [NotePlan](https://noteplan.co). See how your notes link to each other through wiki links and backlinks, with optional hashtag and mention overlays.
 
+![Note Graph](screenshot.png)
+
 ## Features
 
 - **Force-directed graph** — nodes repel each other, connected nodes attract, layout settles naturally
