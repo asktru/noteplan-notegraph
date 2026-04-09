@@ -407,9 +407,9 @@ function buildGraphArea(savedDepth, savedShowTags, savedShowMentions) {
   html += '<div class="ng-toolbar">';
   html += '<div class="ng-depth-btns">';
   var sd = savedDepth || 1;
-  html += '<button class="ng-depth-btn' + (sd === 1 ? ' active' : '') + '" data-depth="1">1-level</button>';
-  html += '<button class="ng-depth-btn' + (sd === 2 ? ' active' : '') + '" data-depth="2">2-level</button>';
-  html += '<button class="ng-depth-btn' + (sd === 3 ? ' active' : '') + '" data-depth="3">3-level</button>';
+  html += '<button class="ng-depth-btn' + (sd === 1 ? ' active' : '') + '" data-depth="1"><span class="ng-depth-full">1-level</span><span class="ng-depth-short">1</span></button>';
+  html += '<button class="ng-depth-btn' + (sd === 2 ? ' active' : '') + '" data-depth="2"><span class="ng-depth-full">2-level</span><span class="ng-depth-short">2</span></button>';
+  html += '<button class="ng-depth-btn' + (sd === 3 ? ' active' : '') + '" data-depth="3"><span class="ng-depth-full">3-level</span><span class="ng-depth-short">3</span></button>';
   html += '</div>';
   html += '<div class="ng-toggle-btns">';
   html += '<button class="ng-toggle-btn' + (savedShowTags ? ' active' : '') + '" data-toggle="tags"><i class="fa-solid fa-hashtag"></i></button>';
@@ -481,7 +481,32 @@ function getInlineCSS() {
 '#ngSVG { width: 100%; height: 100%; }\n' +
 '.ng-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(60px); padding: 10px 20px; border-radius: 6px; background: var(--ng-bg-elevated); color: var(--ng-text); border: 1px solid var(--ng-border); font-size: 13px; opacity: 0; transition: all 0.3s; z-index: 200; pointer-events: none; }\n' +
 '.ng-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }\n' +
-'@media (max-width: 700px) { .ng-sidebar { display: none; } }\n';
+/* Mobile toggle button */
+'.ng-mobile-toggle { display: none; position: fixed; top: 8px; left: 8px; z-index: 110; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--ng-border); background: var(--ng-bg-card); color: var(--ng-text-muted); cursor: pointer; font-size: 16px; align-items: center; justify-content: center; }\n' +
+'.ng-mobile-toggle:hover { background: var(--ng-bg-elevated); color: var(--ng-text); }\n' +
+'.ng-sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 99; }\n' +
+'.ng-sidebar-backdrop.open { display: block; }\n' +
+
+/* Depth buttons: shorten labels on narrow widths */
+'.ng-depth-btn .ng-depth-short { display: none; }\n' +
+'.ng-depth-btn .ng-depth-full { display: inline; }\n' +
+'@media (max-width: 550px) {\n' +
+'  .ng-depth-btn .ng-depth-short { display: inline; }\n' +
+'  .ng-depth-btn .ng-depth-full { display: none; }\n' +
+'  .ng-depth-btn { padding: 4px 10px; }\n' +
+'}\n' +
+
+/* Mobile layout */
+'@media (max-width: 700px) {\n' +
+'  .ng-mobile-toggle { display: flex; }\n' +
+'  .ng-sidebar {\n' +
+'    position: fixed; left: 0; top: 0; bottom: 0; z-index: 120;\n' +
+'    width: 220px; transform: translateX(-100%);\n' +
+'    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);\n' +
+'  }\n' +
+'  .ng-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.3); }\n' +
+'  .ng-toolbar { padding-left: 48px; margin-top: 4px; }\n' +
+'}\n';
 }
 
 function buildFullHTML(bodyContent, graphDataJSON, savedPrefsJSON) {
@@ -545,7 +570,9 @@ async function showNoteGraph(selectedFilename) {
       showMentions: config.showMentions === 'true',
     });
 
-    var bodyHTML = '<div class="ng-layout">';
+    var bodyHTML = '<button class="ng-mobile-toggle" id="ngMobileToggle"><i class="fa-solid fa-bars"></i></button>';
+    bodyHTML += '<div class="ng-sidebar-backdrop" id="ngSidebarBackdrop"></div>';
+    bodyHTML += '<div class="ng-layout">';
     bodyHTML += buildLeftSidebar(graphNotes, filename);
     var savedDepth = parseInt(config.lastDepth) || 1;
     var savedShowTags = config.showTags === 'true';

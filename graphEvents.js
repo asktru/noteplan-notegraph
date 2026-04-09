@@ -410,6 +410,28 @@ document.addEventListener('DOMContentLoaded', function() {
   var initialData = GRAPH_DATA[initialKey] || { nodes: [], edges: [] };
   initGraph(initialData);
 
+  // Mobile sidebar toggle
+  function closeMobileSidebar() {
+    var sb = document.getElementById('ngSidebar');
+    var bd = document.getElementById('ngSidebarBackdrop');
+    if (sb) sb.classList.remove('open');
+    if (bd) bd.classList.remove('open');
+  }
+
+  var mobileToggle = document.getElementById('ngMobileToggle');
+  if (mobileToggle) {
+    mobileToggle.addEventListener('click', function() {
+      var sb = document.getElementById('ngSidebar');
+      var bd = document.getElementById('ngSidebarBackdrop');
+      if (sb) sb.classList.toggle('open');
+      if (bd) bd.classList.toggle('open');
+    });
+  }
+  var backdrop = document.getElementById('ngSidebarBackdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', closeMobileSidebar);
+  }
+
   // Event delegation
   document.body.addEventListener('click', function(e) {
     // Depth buttons
@@ -448,6 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sidebar items
     var sidebarItem = e.target.closest('.ng-sidebar-item');
     if (sidebarItem) {
+      closeMobileSidebar();
       sendMessageToPlugin('selectNote', JSON.stringify({ filename: sidebarItem.dataset.filename }));
       return;
     }
