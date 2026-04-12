@@ -6,7 +6,7 @@
   "plugin.description": "Interactive graph visualization of note connections via wiki links and backlinks.",
   "plugin.icon": "🕸️",
   "plugin.author": "asktru",
-  "plugin.version": "1.0.0",
+  "plugin.version": "1.0.1",
   "plugin.script": "script.js",
   "plugin.isRemote": "false",
   "plugin.dependsOn": [
