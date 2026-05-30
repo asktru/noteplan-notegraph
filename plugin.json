@@ -11,9 +11,6 @@
   "plugin.lastUpdateInfo": "Mobile sidebar navigation with slide-in overlay on small screens; toolbar layout fixes on narrow widths.",
   "plugin.script": "script.js",
   "plugin.isRemote": "false",
-  "plugin.dependsOn": [
-    { "id": "np.Shared", "minVersion": "1.0.0" }
-  ],
   "plugin.requiredFiles": [
     "graphEvents.js"
   ],
