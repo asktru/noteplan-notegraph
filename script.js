@@ -681,6 +681,39 @@ async function toggleGraphCommand() {
 }
 
 // ============================================
+// DEPENDENCY BOOTSTRAP
+// Ensure np.Shared (FontAwesome CSS/fonts, comms bridge) is installed.
+// plugin.dependsOn alone is inert for side-loaded plugins, so we install it
+// ourselves. NotePlan calls onUpdateOrInstall automatically after install/update.
+// ============================================
+
+async function ensureSharedResources() {
+  var id = 'np.Shared';
+
+  var installed = DataStore.installedPlugins() || [];
+  for (var i = 0; i < installed.length; i++) {
+    if (installed[i] && installed[i].id === id) return;
+  }
+
+  var released = (await DataStore.listPlugins(false, true, false)) || [];
+  var match = null;
+  for (var j = 0; j < released.length; j++) {
+    if (released[j] && released[j].id === id) { match = released[j]; break; }
+  }
+  if (!match) {
+    await CommandBar.prompt('Shared Resources needed',
+      'Note Graph needs the "Shared Resources" (np.Shared) plugin. Please install it from NotePlan\'s plugin list.');
+    return;
+  }
+  await DataStore.installPlugin(match, false);
+}
+
+async function onUpdateOrInstall() {
+  try { await ensureSharedResources(); }
+  catch (e) { console.log('Note Graph onUpdateOrInstall failed: ' + (e && e.message ? e.message : String(e))); }
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -688,3 +721,4 @@ globalThis.showNoteGraph = showNoteGraph;
 globalThis.onMessageFromHTMLView = onMessageFromHTMLView;
 globalThis.refreshNoteGraph = refreshNoteGraph;
 globalThis.toggleGraphCommand = toggleGraphCommand;
+globalThis.onUpdateOrInstall = onUpdateOrInstall;

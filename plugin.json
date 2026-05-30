@@ -89,6 +89,12 @@
       "alias": ["graph add", "graph remove", "toggle graph"],
       "description": "Toggle graph: true frontmatter on the current note to include it in the Note Graph sidebar.",
       "jsFunction": "toggleGraphCommand"
+    },
+    {
+      "name": "onUpdateOrInstall",
+      "description": "Install dependencies after install/update",
+      "jsFunction": "onUpdateOrInstall",
+      "hidden": true
     }
   ]
 }
