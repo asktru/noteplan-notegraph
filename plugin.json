@@ -58,7 +58,7 @@
   ],
   "plugin.commands": [
     {
-      "name": "Note Graph",
+      "name": "Open in sidebar",
       "alias": ["graph", "note graph", "connections"],
       "description": "Open the Note Graph visualization",
       "jsFunction": "showNoteGraph",
@@ -68,6 +68,21 @@
         "icon": "fa-diagram-project",
         "iconColor": "#8B5CF6"
       }
+    },
+    {
+      "name": "Open in separate window",
+      "jsFunction": "showNoteGraphWindow",
+      "description": "Open the note graph in a separate window"
+    },
+    {
+      "name": "Open current note in sidebar",
+      "jsFunction": "openCurrentNoteInGraphSidebar",
+      "description": "Add the current note to the graph and open it in the sidebar"
+    },
+    {
+      "name": "Open current note in separate window",
+      "jsFunction": "openCurrentNoteInGraphWindow",
+      "description": "Open the current note's graph in a separate window"
     },
     {
       "name": "onMessageFromHTMLView",

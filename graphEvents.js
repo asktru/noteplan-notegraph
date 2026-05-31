@@ -1,7 +1,21 @@
 // asktru.NoteGraph — graphEvents.js
 // Force-directed graph simulation and SVG rendering
 
-/* global sendMessageToPlugin, GRAPH_DATA */
+/* global sendMessageToPlugin, npWindowID, GRAPH_DATA */
+
+// receivingPluginID and npWindowID are set in the inline script before the bridge
+// loads. Route every outgoing message through sendToPlugin so each payload carries
+// the originating window's ID; the plugin replies to that window (sidebar embed vs.
+// separate floating window). sendMessageToPlugin is `const` in the bridge and can't
+// be monkey-patched, so we wrap it.
+function sendToPlugin(action, data) {
+  try {
+    var d = data ? JSON.parse(data) : {};
+    if (typeof npWindowID !== 'undefined' && npWindowID && d._windowID === undefined) d._windowID = npWindowID;
+    data = JSON.stringify(d);
+  } catch (e) {}
+  return sendMessageToPlugin(action, data);
+}
 
 var NS = 'http://www.w3.org/2000/svg';
 var currentDepth = 1;
@@ -441,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
       depthBtn.classList.add('active');
       currentDepth = parseInt(depthBtn.dataset.depth) || 1;
       reloadGraph();
-      sendMessageToPlugin('savePrefs', JSON.stringify({ depth: currentDepth, showTags: showTags, showMentions: showMentions }));
+      sendToPlugin('savePrefs', JSON.stringify({ depth: currentDepth, showTags: showTags, showMentions: showMentions }));
       return;
     }
 
@@ -453,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (toggle === 'mentions') showMentions = !showMentions;
       toggleBtn.classList.toggle('active');
       reloadGraph();
-      sendMessageToPlugin('savePrefs', JSON.stringify({ depth: currentDepth, showTags: showTags, showMentions: showMentions }));
+      sendToPlugin('savePrefs', JSON.stringify({ depth: currentDepth, showTags: showTags, showMentions: showMentions }));
       return;
     }
 
@@ -471,7 +485,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var sidebarItem = e.target.closest('.ng-sidebar-item');
     if (sidebarItem) {
       closeMobileSidebar();
-      sendMessageToPlugin('selectNote', JSON.stringify({ filename: sidebarItem.dataset.filename }));
+      sendToPlugin('selectNote', JSON.stringify({ filename: sidebarItem.dataset.filename }));
       return;
     }
 
@@ -482,9 +496,9 @@ document.addEventListener('DOMContentLoaded', function() {
       var nodeTitle = nodeG.dataset.title || '';
       if (nodeId.startsWith('tag:') || nodeId.startsWith('mention:')) {
         // Tags/mentions: open NotePlan's tag filter
-        sendMessageToPlugin('openTag', JSON.stringify({ name: nodeTitle }));
+        sendToPlugin('openTag', JSON.stringify({ name: nodeTitle }));
       } else {
-        sendMessageToPlugin('openNote', JSON.stringify({ title: nodeTitle }));
+        sendToPlugin('openNote', JSON.stringify({ title: nodeTitle }));
       }
       return;
     }

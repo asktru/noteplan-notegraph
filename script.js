@@ -3,6 +3,7 @@
 
 var PLUGIN_ID = 'asktru.NoteGraph';
 var WINDOW_ID = 'asktru.NoteGraph.dashboard';
+var WINDOW_ID_FLOATING = 'asktru.NoteGraph.dashboardWindow';
 
 function getSettings() {
   var s = DataStore.settings || {};
@@ -509,7 +510,7 @@ function getInlineCSS() {
 '}\n';
 }
 
-function buildFullHTML(bodyContent, graphDataJSON, savedPrefsJSON) {
+function buildFullHTML(bodyContent, graphDataJSON, savedPrefsJSON, windowID) {
   var themeCSS = getThemeCSS();
   var pluginCSS = getInlineCSS();
   var themeAttr = isLightTheme() ? 'light' : 'dark';
@@ -523,7 +524,7 @@ function buildFullHTML(bodyContent, graphDataJSON, savedPrefsJSON) {
     '  <style>' + themeCSS + '\n' + pluginCSS + '</style>\n' +
     '</head>\n<body>\n' + bodyContent + '\n' +
     '  <div class="ng-toast" id="ngToast"></div>\n' +
-    '  <script>var receivingPluginID="asktru.NoteGraph";\nvar GRAPH_DATA=' + graphDataJSON + ';\nvar SAVED_PREFS=' + savedPrefsJSON + ';\n<\/script>\n' +
+    '  <script>var receivingPluginID="asktru.NoteGraph";\nvar npWindowID=\'' + (windowID || WINDOW_ID) + '\';\nvar GRAPH_DATA=' + graphDataJSON + ';\nvar SAVED_PREFS=' + savedPrefsJSON + ';\n<\/script>\n' +
     '  <script type="text/javascript" src="graphEvents.js"><\/script>\n' +
     '  <script type="text/javascript" src="../np.Shared/pluginToHTMLCommsBridge.js"><\/script>\n' +
     '</body>\n</html>';
@@ -533,7 +534,7 @@ function buildFullHTML(bodyContent, graphDataJSON, savedPrefsJSON) {
 // MAIN ENTRY
 // ============================================
 
-async function showNoteGraph(selectedFilename) {
+async function showNoteGraph(selectedFilename, targetWindowID) {
   try {
     CommandBar.showLoading(true, 'Building graph...');
     await CommandBar.onAsyncThread();
@@ -580,22 +581,32 @@ async function showNoteGraph(selectedFilename) {
     bodyHTML += buildGraphArea(savedDepth, savedShowTags, savedShowMentions);
     bodyHTML += '</div>';
 
-    var fullHTML = buildFullHTML(bodyHTML, graphDataJSON, savedPrefsJSON);
+    var winID = targetWindowID || WINDOW_ID;
+    var isFloating = winID === WINDOW_ID_FLOATING;
+
+    var fullHTML = buildFullHTML(bodyHTML, graphDataJSON, savedPrefsJSON, winID);
 
     await CommandBar.onMainThread();
     CommandBar.showLoading(false);
 
     var winOptions = {
-      customId: WINDOW_ID,
-      savedFilename: '../../asktru.NoteGraph/note_graph.html',
+      customId: isFloating ? WINDOW_ID_FLOATING : WINDOW_ID,
+      savedFilename: isFloating ? '../../asktru.NoteGraph/notegraph_window.html' : '../../asktru.NoteGraph/note_graph.html',
       shouldFocus: true, reuseUsersWindowRect: true,
       headerBGColor: 'transparent', autoTopPadding: true,
-      showReloadButton: true, reloadPluginID: PLUGIN_ID, reloadCommandName: 'Note Graph',
+      showReloadButton: true, reloadPluginID: PLUGIN_ID,
+      reloadCommandName: isFloating ? 'Open in separate window' : 'Open in sidebar',
       icon: 'fa-diagram-project', iconColor: '#8B5CF6',
     };
 
-    var result = await HTMLView.showInMainWindow(fullHTML, 'Note Graph', winOptions);
-    if (!result || !result.success) await HTMLView.showWindowWithOptions(fullHTML, 'Note Graph', winOptions);
+    if (isFloating) {
+      winOptions.width = 1200;
+      winOptions.height = 800;
+      await HTMLView.showWindowWithOptions(fullHTML, 'Note Graph', winOptions);
+    } else {
+      var result = await HTMLView.showInMainWindow(fullHTML, 'Note Graph', winOptions);
+      if (!result || !result.success) await HTMLView.showWindowWithOptions(fullHTML, 'Note Graph', winOptions);
+    }
   } catch (err) {
     CommandBar.showLoading(false);
     console.log('NoteGraph error: ' + String(err));
@@ -603,6 +614,12 @@ async function showNoteGraph(selectedFilename) {
 }
 
 async function refreshNoteGraph() { await showNoteGraph(); }
+
+// Open the graph in a separate (floating) window, distinct from the sidebar
+// embed so the two views stay independently routed.
+async function showNoteGraphWindow() {
+  await showNoteGraph(undefined, WINDOW_ID_FLOATING);
+}
 
 async function sendToHTMLWindow(windowId, type, data) {
   try {
@@ -620,12 +637,13 @@ async function sendToHTMLWindow(windowId, type, data) {
 async function onMessageFromHTMLView(actionType, data) {
   try {
     var msg = typeof data === 'string' ? JSON.parse(data) : data;
+    var replyWindowID = (msg && msg._windowID) || WINDOW_ID;
 
     switch (actionType) {
       case 'selectNote':
         if (msg.filename) {
           saveLastSelected(msg.filename);
-          await showNoteGraph(msg.filename);
+          await showNoteGraph(msg.filename, replyWindowID);
         }
         break;
 
@@ -681,6 +699,33 @@ async function toggleGraphCommand() {
 }
 
 // ============================================
+// CURRENT-NOTE COMMANDS
+// ============================================
+
+async function openCurrentNoteInGraphSidebar() {
+  var note = Editor && Editor.note;
+  if (!note) {
+    await CommandBar.prompt('Open current note in sidebar', 'No note is currently open in the editor.');
+    return;
+  }
+  // Add the note to the graph using the same mechanism as toggleGraphCommand's
+  // add path: write the `graph: true` frontmatter key.
+  setFrontmatterKey(note, 'graph', 'true');
+  DataStore.updateCache(note, true);
+  await showNoteGraph(note.filename);
+}
+
+async function openCurrentNoteInGraphWindow() {
+  var note = Editor && Editor.note;
+  if (!note) {
+    await CommandBar.prompt('Open current note in separate window', 'No note is currently open in the editor.');
+    return;
+  }
+  // Seed the graph on the current note without writing frontmatter.
+  await showNoteGraph(note.filename, WINDOW_ID_FLOATING);
+}
+
+// ============================================
 // DEPENDENCY BOOTSTRAP
 // NotePlan doesn't auto-install plugin dependencies for side-loaded plugins,
 // so we install them ourselves. REQUIRED_PLUGINS is the single source of truth.
@@ -717,7 +762,10 @@ async function onUpdateOrInstall() {
 // ============================================
 
 globalThis.showNoteGraph = showNoteGraph;
+globalThis.showNoteGraphWindow = showNoteGraphWindow;
 globalThis.onMessageFromHTMLView = onMessageFromHTMLView;
 globalThis.refreshNoteGraph = refreshNoteGraph;
 globalThis.toggleGraphCommand = toggleGraphCommand;
+globalThis.openCurrentNoteInGraphSidebar = openCurrentNoteInGraphSidebar;
+globalThis.openCurrentNoteInGraphWindow = openCurrentNoteInGraphWindow;
 globalThis.onUpdateOrInstall = onUpdateOrInstall;
