@@ -4,6 +4,10 @@
 var PLUGIN_ID = 'asktru.NoteGraph';
 var WINDOW_ID = 'asktru.NoteGraph.dashboard';
 var WINDOW_ID_FLOATING = 'asktru.NoteGraph.dashboardWindow';
+// Distinct window for "open current note": a focused, sidebar-less graph
+// centered on one note. Separate ID so the no-sidebar state derives from the
+// windowID and survives in-window re-renders.
+var WINDOW_ID_NOTE = 'asktru.NoteGraph.noteWindow';
 
 function getSettings() {
   var s = DataStore.settings || {};
@@ -571,31 +575,45 @@ async function showNoteGraph(selectedFilename, targetWindowID) {
       showMentions: config.showMentions === 'true',
     });
 
-    var bodyHTML = '<button class="ng-mobile-toggle" id="ngMobileToggle"><i class="fa-solid fa-bars"></i></button>';
-    bodyHTML += '<div class="ng-sidebar-backdrop" id="ngSidebarBackdrop"></div>';
-    bodyHTML += '<div class="ng-layout">';
-    bodyHTML += buildLeftSidebar(graphNotes, filename);
+    var winID = targetWindowID || WINDOW_ID;
+    var isNoteWindow = winID === WINDOW_ID_NOTE;
+    var isFloating = winID === WINDOW_ID_FLOATING || isNoteWindow;
+
     var savedDepth = parseInt(config.lastDepth) || 1;
     var savedShowTags = config.showTags === 'true';
     var savedShowMentions = config.showMentions === 'true';
+
+    var bodyHTML = '';
+    // The focused current-note window omits the Graph Notes sidebar (and its
+    // mobile toggle/backdrop) — a single-note view, like Donote's preview window.
+    if (!isNoteWindow) {
+      bodyHTML += '<button class="ng-mobile-toggle" id="ngMobileToggle"><i class="fa-solid fa-bars"></i></button>';
+      bodyHTML += '<div class="ng-sidebar-backdrop" id="ngSidebarBackdrop"></div>';
+    }
+    bodyHTML += '<div class="ng-layout">';
+    if (!isNoteWindow) bodyHTML += buildLeftSidebar(graphNotes, filename);
     bodyHTML += buildGraphArea(savedDepth, savedShowTags, savedShowMentions);
     bodyHTML += '</div>';
-
-    var winID = targetWindowID || WINDOW_ID;
-    var isFloating = winID === WINDOW_ID_FLOATING;
 
     var fullHTML = buildFullHTML(bodyHTML, graphDataJSON, savedPrefsJSON, winID);
 
     await CommandBar.onMainThread();
     CommandBar.showLoading(false);
 
+    var savedFilename = isNoteWindow
+      ? '../../asktru.NoteGraph/note_window.html'
+      : (isFloating ? '../../asktru.NoteGraph/notegraph_window.html' : '../../asktru.NoteGraph/note_graph.html');
+    var reloadCommandName = isNoteWindow
+      ? 'Open current note in separate window'
+      : (isFloating ? 'Open in separate window' : 'Open in sidebar');
+
     var winOptions = {
-      customId: isFloating ? WINDOW_ID_FLOATING : WINDOW_ID,
-      savedFilename: isFloating ? '../../asktru.NoteGraph/notegraph_window.html' : '../../asktru.NoteGraph/note_graph.html',
+      customId: winID,
+      savedFilename: savedFilename,
       shouldFocus: true, reuseUsersWindowRect: true,
       headerBGColor: 'transparent', autoTopPadding: true,
       showReloadButton: true, reloadPluginID: PLUGIN_ID,
-      reloadCommandName: isFloating ? 'Open in separate window' : 'Open in sidebar',
+      reloadCommandName: reloadCommandName,
       icon: 'fa-diagram-project', iconColor: '#8B5CF6',
     };
 
@@ -721,8 +739,9 @@ async function openCurrentNoteInGraphWindow() {
     await CommandBar.prompt('Open current note in separate window', 'No note is currently open in the editor.');
     return;
   }
-  // Seed the graph on the current note without writing frontmatter.
-  await showNoteGraph(note.filename, WINDOW_ID_FLOATING);
+  // Seed the graph on the current note without writing frontmatter, in a
+  // focused sidebar-less window (WINDOW_ID_NOTE).
+  await showNoteGraph(note.filename, WINDOW_ID_NOTE);
 }
 
 // ============================================
