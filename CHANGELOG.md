@@ -1,5 +1,13 @@
 # What's changed in 🕸 Note Graph plugin?
 
+## [1.1.0] 2026-06-07
+### New
+- Standardized **Open** commands: Open in sidebar / separate window, plus Open current note in sidebar / separate window.
+- np.Shared is auto-installed on install/update.
+
+### Fixes
+- The Graph Notes sidebar is hidden in the current-note window.
+
 ## [1.0.1] 2026-04-12
 ### New
 - **Mobile sidebar navigation**: hamburger button opens the sidebar as a slide-in overlay on small screens; backdrop and auto-close on note selection.

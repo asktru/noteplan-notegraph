@@ -7,8 +7,8 @@
   "plugin.description": "Interactive graph visualization of note connections via wiki links and backlinks.",
   "plugin.icon": "🕸️",
   "plugin.author": "asktru",
-  "plugin.version": "1.0.1",
-  "plugin.lastUpdateInfo": "Mobile sidebar navigation with slide-in overlay on small screens; toolbar layout fixes on narrow widths.",
+  "plugin.version": "1.1.0",
+  "plugin.lastUpdateInfo": "Standardized Open commands (window + current-note variants), the Graph Notes sidebar hidden in the current-note window, and automatic np.Shared installation.",
   "plugin.script": "script.js",
   "plugin.isRemote": "false",
   "plugin.requiredFiles": [
