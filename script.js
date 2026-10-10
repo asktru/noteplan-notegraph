@@ -366,7 +366,8 @@ function buildGraphData(graphNotes, selectedFilename, depth, showTags, showMenti
           // Skip system mentions
           if (cleanMention.startsWith('done(') || cleanMention.startsWith('review(') || cleanMention.startsWith('reviewed(') ||
               cleanMention.startsWith('repeat(') || cleanMention.startsWith('due(') || cleanMention.startsWith('start(') ||
-              cleanMention.startsWith('completed(') || cleanMention.startsWith('cancelled(')) continue;
+              cleanMention.startsWith('completed(') || cleanMention.startsWith('cancelled(') ||
+              cleanMention === 'remind' || cleanMention.startsWith('remind(')) continue;
           var mentionId = 'mention:@' + cleanMention;
           if (!nodesMap[mentionId]) {
             nodesMap[mentionId] = { id: mentionId, title: '@' + cleanMention, isGraphNote: false, isSelected: false, nodeType: 'mention' };

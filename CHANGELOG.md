@@ -1,5 +1,9 @@
 # What's changed in 🕸 Note Graph plugin?
 
+## [1.1.1] 2026-10-10
+### Fixes
+- `@remind(...)` tags (NotePlan's Apple Reminders link) no longer appear as mention nodes in the graph.
+
 ## [1.1.0] 2026-06-07
 ### New
 - Standardized **Open** commands: Open in sidebar / separate window, plus Open current note in sidebar / separate window.
